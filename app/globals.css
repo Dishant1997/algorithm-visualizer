@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+/* Dark-first lab UI: tuned for diagrams and long sessions */
+:root,
+.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --muted: #a1a1aa;
+  --surface: rgba(24, 24, 27, 0.72);
+  --surface-elevated: rgba(39, 39, 42, 0.55);
+  --border: rgba(255, 255, 255, 0.08);
+  --accent: #34d399;
+  --accent-muted: rgba(52, 211, 153, 0.14);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-muted: var(--accent-muted);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Subtle blueprint grid for diagram surfaces */
+.bg-diagram-grid {
+  background-color: rgba(9, 9, 11, 0.92);
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
