@@ -4,71 +4,69 @@ import { LabCanvasFrame } from "@/components/layout/lab-canvas-frame";
 import { LabPanel } from "@/components/layout/lab-panel";
 import { LabModuleFrame } from "@/modules/lab/LabModuleFrame";
 
-import { streamingModuleMeta } from "./module-meta";
-import { StreamingControlPanel } from "./StreamingControlPanel";
-import { StreamingEventLog } from "./StreamingEventLog";
-import { StreamingMetricsPanel } from "./StreamingMetricsPanel";
-import { SystemDiagram } from "./SystemDiagram";
+import { KMeansCanvas } from "./KMeansCanvas";
+import { KMeansControlPanel } from "./KMeansControlPanel";
+import { KMeansIterationLog } from "./KMeansIterationLog";
+import { KMeansMetricsPanel } from "./KMeansMetricsPanel";
+import { kmeansModuleMeta } from "./module-meta";
 
-/**
- * Streaming lab: wires the shared lab frame to streaming-specific panels.
- */
-export function StreamingLabPage({ headerActions }: { headerActions?: ReactNode }) {
+export function KMeansLabPage({ headerActions }: { headerActions?: ReactNode }) {
   return (
     <LabModuleFrame
-      module={streamingModuleMeta}
+      module={kmeansModuleMeta}
       headerActions={headerActions}
       slots={{
         controls: (
           <LabPanel
-            title="Simulation controls"
-            description="Playback, topology, rates, and failure policies for this run."
+            title="Controls"
+            description="Dataset, K, speed, and playback. Expand Why it works for the math."
             className="h-fit"
-            bodyClassName="space-y-5"
+            bodyClassName="space-y-1"
           >
-            <StreamingControlPanel />
+            <KMeansControlPanel />
           </LabPanel>
         ),
         diagram: (
           <LabPanel
-            title="System diagram"
-            description="Producers, topic partitions, consumer group assignments."
+            title="Clustering visualization"
+            description="Points colored by cluster assignment. Rings are centroids — watch them converge."
             className="flex h-full min-h-0 flex-col"
             bodyClassName="flex min-h-0 flex-1 flex-col"
           >
             <LabCanvasFrame className="min-h-[min(52vh,28rem)] flex-1">
-              <SystemDiagram />
+              <KMeansCanvas />
             </LabCanvasFrame>
           </LabPanel>
         ),
         metrics: (
           <LabPanel
             title="Live metrics"
-            description="Cumulative totals, backlog signals, and per-tick series."
+            description="Inertia (WCSS) and cluster size distribution per iteration."
             className="flex min-h-0 min-w-0 flex-1 flex-col"
             bodyClassName="flex min-h-0 flex-1 flex-col"
           >
-            <StreamingMetricsPanel />
+            <KMeansMetricsPanel />
           </LabPanel>
         ),
         eventLog: (
           <LabPanel
-            title="Event log"
-            description="Recent engine events with simulation timestamps."
+            title="Iteration log"
+            description="Inertia and delta per step — newest first."
             className="flex min-h-0 flex-1 flex-col"
             bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
           >
-            <StreamingEventLog />
+            <KMeansIterationLog />
           </LabPanel>
         ),
         charts: (
           <LabPanel
-            title="Session"
-            description="Primary throughput and lag chart lives in Live metrics."
+            title="About K-Means"
             bodyClassName="py-2 text-[11px] leading-relaxed text-zinc-500"
           >
-            Use Run or Step in controls to drive ticks—KPIs and the line chart update from
-            the same simulation state.
+            Expectation–Maximisation over Euclidean distance. Converges to a{" "}
+            <em>local</em> minimum — run Shuffle multiple times to find a better
+            partition. Moons and rings demonstrate why non-convex data needs
+            DBSCAN or spectral clustering instead.
           </LabPanel>
         ),
       }}

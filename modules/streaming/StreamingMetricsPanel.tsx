@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   CartesianGrid,
   ComposedChart,
@@ -16,6 +17,8 @@ import {
   ArrowRightLeft,
   Gauge,
   Layers,
+  Maximize2,
+  Minimize2,
   Package,
   RefreshCw,
 } from "lucide-react";
@@ -62,6 +65,101 @@ const tooltipStyle = {
   fontSize: "11px",
 };
 
+/** Inline panel chart height */
+const CHART_PLOT_HEIGHT = 240;
+/** Expanded overlay chart (fixed px so Recharts measures reliably) */
+const CHART_OVERLAY_HEIGHT = 420;
+
+type ThroughputLagChartRow = {
+  tick: number;
+  produced: number;
+  consumed: number;
+  lag: number;
+};
+
+function ThroughputLagChart({
+  chartData,
+  height,
+}: {
+  chartData: readonly ThroughputLagChartRow[];
+  height: number;
+}) {
+  return (
+    <div className="w-full min-w-0">
+      <ResponsiveContainer width="100%" height={height}>
+        <ComposedChart
+          data={chartData}
+          margin={{ top: 8, right: 8, left: 2, bottom: 28 }}
+        >
+          <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+          <XAxis
+            dataKey="tick"
+            tick={{ fill: "#71717a", fontSize: 10 }}
+            tickLine={false}
+            axisLine={{ stroke: "rgba(255,255,255,0.12)" }}
+          />
+          <YAxis
+            yAxisId="tp"
+            tick={{ fill: "#71717a", fontSize: 10 }}
+            tickLine={false}
+            axisLine={false}
+            width={36}
+          />
+          <YAxis
+            yAxisId="lag"
+            orientation="right"
+            tick={{ fill: "#a1a1aa", fontSize: 10 }}
+            tickLine={false}
+            axisLine={false}
+            width={36}
+          />
+          <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: "#e4e4e7" }} />
+          <Legend
+            wrapperStyle={{ fontSize: "10px", paddingTop: 6 }}
+            formatter={(value) =>
+              value === "lag"
+                ? "Lag"
+                : value === "produced"
+                  ? "Produced / tick"
+                  : "Consumed / tick"
+            }
+          />
+          <Line
+            yAxisId="tp"
+            type="monotone"
+            dataKey="produced"
+            name="produced"
+            stroke="rgba(52, 211, 153, 0.9)"
+            strokeWidth={1.5}
+            dot={false}
+            isAnimationActive={chartData.length < 80}
+          />
+          <Line
+            yAxisId="tp"
+            type="monotone"
+            dataKey="consumed"
+            name="consumed"
+            stroke="rgba(56, 189, 248, 0.9)"
+            strokeWidth={1.5}
+            dot={false}
+            isAnimationActive={chartData.length < 80}
+          />
+          <Line
+            yAxisId="lag"
+            type="monotone"
+            dataKey="lag"
+            name="lag"
+            stroke="rgba(251, 191, 36, 0.95)"
+            strokeWidth={1.5}
+            dot={false}
+            isAnimationActive={chartData.length < 80}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 export function StreamingMetricsPanel() {
   const lastMetrics = useStreamingSimulationStore((s) => s.lastMetrics);
   const cumulativeProduced = useStreamingSimulationStore((s) => s.cumulativeProduced);
@@ -83,9 +181,86 @@ export function StreamingMetricsPanel() {
     [metricsSeries],
   );
 
+  const [chartMaximized, setChartMaximized] = useState(false);
+  const titleId = useId();
+
+  const closeOverlay = useCallback(() => setChartMaximized(false), []);
+
+  useEffect(() => {
+    if (!chartMaximized) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeOverlay();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [chartMaximized, closeOverlay]);
+
+  useEffect(() => {
+    if (!chartMaximized) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [chartMaximized]);
+
+  const overlay =
+    chartMaximized && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+          >
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/65 backdrop-blur-[2px]"
+              aria-label="Close chart overlay"
+              onClick={closeOverlay}
+            />
+            <div
+              className="relative z-[1] flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/12 bg-zinc-950/95 shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_24px_80px_rgba(0,0,0,0.65)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+                <h3
+                  id={titleId}
+                  className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400"
+                >
+                  Throughput &amp; lag
+                </h3>
+                <button
+                  type="button"
+                  onClick={closeOverlay}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-zinc-200 transition hover:bg-white/10"
+                >
+                  <Minimize2 className="size-3.5" aria-hidden />
+                  Close
+                </button>
+              </div>
+              <div className="min-h-0 px-3 pb-4 pt-2">
+                {chartData.length === 0 ? (
+                  <div
+                    className="flex items-center justify-center text-center text-[11px] text-zinc-500"
+                    style={{ height: CHART_OVERLAY_HEIGHT }}
+                  >
+                    Step or run the simulation to record per-tick throughput and lag.
+                  </div>
+                ) : (
+                  <ThroughputLagChart chartData={chartData} height={CHART_OVERLAY_HEIGHT} />
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <div className="flex min-h-0 flex-col gap-4">
-      <div className="grid grid-cols-2 gap-2">
+      {overlay}
+      <div className="grid shrink-0 grid-cols-2 gap-2">
         <KpiCard
           label="Produced"
           value={cumulativeProduced.toLocaleString()}
@@ -124,88 +299,32 @@ export function StreamingMetricsPanel() {
         />
       </div>
 
-      <div className="min-h-[168px] w-full flex-1 rounded-xl border border-white/10 bg-zinc-950/50 px-1 pb-1 pt-2">
-        <p className="mb-1 px-2 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
-          Throughput & lag
-        </p>
+      <div className="flex w-full min-w-0 shrink-0 flex-col rounded-xl border border-white/10 bg-zinc-950/50 select-none">
+        <div className="flex shrink-0 items-start justify-between gap-2 px-3 pt-2.5">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+            Throughput &amp; lag
+          </p>
+          <button
+            type="button"
+            onClick={() => setChartMaximized(true)}
+            className="-mr-1 -mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[10px] font-medium text-zinc-300 transition hover:bg-white/10"
+            aria-label="Maximize throughput and lag chart"
+          >
+            <Maximize2 className="size-3.5" aria-hidden />
+            <span className="hidden sm:inline">Expand</span>
+          </button>
+        </div>
         {chartData.length === 0 ? (
-          <div className="flex h-[140px] items-center justify-center px-3 text-center text-[11px] text-zinc-500">
+          <div
+            className="flex items-center justify-center px-3 pb-3 pt-1 text-center text-[11px] text-zinc-500"
+            style={{ height: CHART_PLOT_HEIGHT }}
+          >
             Step or run the simulation to record per-tick throughput and lag.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={148}>
-            <ComposedChart
-              data={chartData}
-              margin={{ top: 4, right: 8, left: -8, bottom: 0 }}
-            >
-              <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-              <XAxis
-                dataKey="tick"
-                tick={{ fill: "#71717a", fontSize: 10 }}
-                tickLine={false}
-                axisLine={{ stroke: "rgba(255,255,255,0.12)" }}
-              />
-              <YAxis
-                yAxisId="tp"
-                tick={{ fill: "#71717a", fontSize: 10 }}
-                tickLine={false}
-                axisLine={false}
-                width={28}
-              />
-              <YAxis
-                yAxisId="lag"
-                orientation="right"
-                tick={{ fill: "#a1a1aa", fontSize: 10 }}
-                tickLine={false}
-                axisLine={false}
-                width={28}
-              />
-              <Tooltip
-                contentStyle={tooltipStyle}
-                labelStyle={{ color: "#e4e4e7" }}
-              />
-              <Legend
-                wrapperStyle={{ fontSize: "10px", paddingTop: 4 }}
-                formatter={(value) =>
-                  value === "lag"
-                    ? "Lag"
-                    : value === "produced"
-                      ? "Produced / tick"
-                      : "Consumed / tick"
-                }
-              />
-              <Line
-                yAxisId="tp"
-                type="monotone"
-                dataKey="produced"
-                name="produced"
-                stroke="rgba(52, 211, 153, 0.9)"
-                strokeWidth={1.5}
-                dot={false}
-                isAnimationActive={chartData.length < 80}
-              />
-              <Line
-                yAxisId="tp"
-                type="monotone"
-                dataKey="consumed"
-                name="consumed"
-                stroke="rgba(56, 189, 248, 0.9)"
-                strokeWidth={1.5}
-                dot={false}
-                isAnimationActive={chartData.length < 80}
-              />
-              <Line
-                yAxisId="lag"
-                type="monotone"
-                dataKey="lag"
-                name="lag"
-                stroke="rgba(251, 191, 36, 0.95)"
-                strokeWidth={1.5}
-                dot={false}
-                isAnimationActive={chartData.length < 80}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+          <div className="w-full min-w-0 px-1 pb-2 pt-1">
+            <ThroughputLagChart chartData={chartData} height={CHART_PLOT_HEIGHT} />
+          </div>
         )}
       </div>
     </div>

@@ -1,8 +1,5 @@
-import { StreamingLabPage } from "@/modules/streaming/StreamingLabPage";
+import { ModuleRouter } from "@/components/ModuleRouter";
 
-/**
- * Root experience: swap `StreamingLabPage` for another module page when new simulators ship.
- */
 export default function Home() {
-  return <StreamingLabPage />;
+  return <ModuleRouter />;
 }
